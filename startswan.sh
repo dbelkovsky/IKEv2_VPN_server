@@ -1,35 +1,47 @@
 #You must change the eth0 interface to your own in this script in /etc/ufw/before.rules in three places
-#Вы должны изменить интерфейс eth0 на свой в этом скрипте в /etc/ufw/before.rules в трех местах
 #!/bin/bash
-apt update
-myip=$(wget -qO - eth0.me)
-apt install strongswan strongswan-pki libcharon-extra-plugins libcharon-extauth-plugins -y
-mkdir -p ~/pki/cacerts
-mkdir -p ~/pki/certs
-mkdir -p ~/pki/private
+#vars
+read -e -p "Type server public IP(default) or FQDN: " -i "$(wget -qO - eth0.me)" myip
+echo "Select server network interface to next step"
+ip a
+read -e -p "Type server network interface: " myeth
+#myip=$(wget -qO - eth0.me)
 
-chmod 700 ~/pki
+InstallStrongswan() {
+    apt update
+    apt upgrade -y
+    apt install strongswan strongswan-pki libcharon-extra-plugins libcharon-extauth-plugins -yy
+}
 
-pki --gen --type rsa --size 4096 --outform pem > ~/pki/private/ca-key.pem
+CreateSerts() {
 
-pki --self --ca --lifetime 3650 --in ~/pki/private/ca-key.pem \
---type rsa --dn "CN=VPN root CA" --outform pem > ~/pki/cacerts/ca-cert.pem
+    mkdir -p ~/pki/cacerts
+    mkdir -p ~/pki/certs
+    mkdir -p ~/pki/private
+    chmod 700 ~/pki
 
-pki --gen --type rsa --size 4096 --outform pem > ~/pki/private/server-key.pem
+    pki --gen --type rsa --size 4096 --outform pem >~/pki/private/ca-key.pem
 
-pki --pub --in ~/pki/private/server-key.pem --type rsa \
-    | pki --issue --lifetime 1825 \
-        --cacert ~/pki/cacerts/ca-cert.pem \
-        --cakey ~/pki/private/ca-key.pem \
-        --dn "CN=$myip" --san @$myip --san $myip \
-        --flag serverAuth --flag ikeIntermediate --outform pem \
-    >  ~/pki/certs/server-cert.pem
+    pki --self --ca --lifetime 3650 --in ~/pki/private/ca-key.pem \
+        --type rsa --dn "CN=VPN root CA" --outform pem >~/pki/cacerts/ca-cert.pem
 
-cp -r ~/pki/* /etc/ipsec.d/
+    pki --gen --type rsa --size 4096 --outform pem >~/pki/private/server-key.pem
 
-mv /etc/ipsec.conf{,.original} #Создаем резервную копию файла настроек
+    pki --pub --in ~/pki/private/server-key.pem --type rsa |
+        pki --issue --lifetime 1825 \
+            --cacert ~/pki/cacerts/ca-cert.pem \
+            --cakey ~/pki/private/ca-key.pem \
+            --dn "CN=$myip" --san @$myip --san $myip \
+            --flag serverAuth --flag ikeIntermediate --outform pem \
+            >~/pki/certs/server-cert.pem
 
-cat << EOF > /etc/ipsec.conf
+    cp -r ~/pki/* /etc/ipsec.d/
+}
+
+SettingupStrongswan() {
+    mv /etc/ipsec.conf{,.original} #create settings dump
+
+    cat <<EOF >/etc/ipsec.conf
 config setup
     charondebug="ike 1, knl 1, cfg 0"
     uniqueids=no
@@ -59,28 +71,34 @@ conn ikev2-vpn
     ike=chacha20poly1305-sha512-curve25519-prfsha512,aes256gcm16-sha384-prfsha384-ecp384,aes256-sha1-modp1024,aes128-sha1-modp1024,3des-sha1-modp1024,aes256-sha256-modp2048!
     esp=chacha20poly1305-sha512,aes256gcm16-ecp384,aes256-sha256,aes256-sha1,3des-sha1!
 EOF
-
-cat << EOF > /etc/ipsec.secrets
+    echo "Create vpn profile"
+    read -e -p "Enter username: " user
+    read -e -p "Enter password: " pswd
+    cat <<EOF >/etc/ipsec.secrets
 : RSA "server-key.pem"
 # your_username : EAP "your_password" - use this format for create new user
 # sudo systemctl restart strongswan-starter - for the changes to take effect, after adding a new user, close the file and restart the server with this command
+$user : EAP "$pswd"
 EOF
+    sudo systemctl restart strongswan-starter
+}
 
+IptablesAndFirewall() {
 
-ufw allow OpenSSH
-ufw enable
-ufw allow 500,4500/udp
+    ufw allow OpenSSH
+    ufw enable
+    ufw allow 500,4500/udp
 
-cat << EOF > /etc/ufw/before.rules
+    cat <<EOF >/etc/ufw/before.rules
 *nat
 #change eth0 interface to yours
--A POSTROUTING -s 10.10.10.0/24 -o eth0 -m policy --pol ipsec --dir out -j ACCEPT
--A POSTROUTING -s 10.10.10.0/24 -o eth0 -j MASQUERADE                             
+-A POSTROUTING -s 10.10.10.0/24 -o $myeth -m policy --pol ipsec --dir out -j ACCEPT
+-A POSTROUTING -s 10.10.10.0/24 -o $myeth -j MASQUERADE                             
 COMMIT
 
 *mangle
 #change eth0 interface to yours
--A FORWARD --match policy --pol ipsec --dir in -s 10.10.10.0/24 -o eth0 -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360
+-A FORWARD --match policy --pol ipsec --dir in -s 10.10.10.0/24 -o $myeth -p tcp -m tcp --tcp-flags SYN,RST SYN -m tcpmss --mss 1361:1536 -j TCPMSS --set-mss 1360
 COMMIT
 #
 # rules.before
@@ -160,12 +178,27 @@ COMMIT
 COMMIT
 EOF
 
-cat << EOF >> /etc/ufw/sysctl.conf
+    cat <<EOF >>/etc/ufw/sysctl.conf
 net/ipv4/ip_forward=1
 net/ipv4/conf/all/accept_redirects=0
 net/ipv4/conf/all/send_redirects=0
 net/ipv4/ip_no_pmtu_disc=1
 EOF
 
-ufw disable
-ufw enable
+    ufw disable
+    ufw enable
+}
+FinalSettings() {
+    echo "Congrats!!! Server settings are finished!!!"
+    echo "This is your connection profile"
+    echo "username: $user password: $pswd"
+    echo "This is your sertificate"
+    cat /etc/ipsec.d/cacerts/ca-cert.pem
+    echo "Copy and save username/password and cert for next settings steps"
+}
+
+InstallStrongswan
+CreateSerts
+SettingupStrongswan
+IptablesAndFirewall
+FinalSettings
