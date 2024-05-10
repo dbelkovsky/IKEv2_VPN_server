@@ -1,88 +1,29 @@
- This script is designed to automatically install the Strongswan daemon. Use Ubuntu 20.04. On it this script is tested and works well.
+# Introduction
 
-## Installation.
+A virtual private network, or VPN, allows you to securely encrypt traffic as it travels through untrusted networks, such as those at the coffee shop, a conference, or an airport.
 
-Before running the script, find out your network interface. Use command
-```
-ip route show default
-```
-to find out your network interface.
-After applying the command, you will see output like
-```Output</br>
-default via your_server_ip dev eth0 proto static
-```
-After **dev** there will be the required interfaces, in this case it is **eth0**. Insert your interface in the script, use the search for this. Replace all eth0 in the script with your network interface.
+Internet Key Exchange v2, or IKEv2, is a protocol that allows for direct IPSec tunneling between the server and client. In IKEv2 VPN implementations, IPSec provides encryption for the network traffic. IKEv2 is natively supported on some platforms (OS X 10.11+, iOS 9.1+, and Windows 10) with no additional applications necessary, and it handles client hiccups quite smoothly.
 
-To run the script use this command
-```
-yes | sudo sh startswan.sh
-```
+In this tutorial, you’ll set up an IKEv2 VPN server using StrongSwan on an Ubuntu 20.04 server. You’ll then learn how to connect to it with Windows, macOS, Ubuntu, iOS, and Android clients.
 
+## Fast Start
 
-## Usage.
+If you want a quick start and are not in the mood to understand how everything works, this [script](https://github.com/dbelkovsky/IKEv2_VPN_server/blob/master/startswan.sh) will help you!
 
-You will need to add a username and password.
-Edit the file
-```
-/etc/ipsec.secrets
-```
-Inside the file there is a template for how to add a new user.
-After saving the file, restart Strongswan using the command
-```
-sudo systemctl restart strongswan-starter
-```
+\*\*\*_This script is designed to automatically install the Strongswan daemon and all other preferences. Use Ubuntu 20.04. On it this script is tested and works well_
 
-You can get a certificate with the help of the command
-```
-cat /etc/ipsec.d/cacerts/ca-cert.pem
-```
-Save the text between
-</br>**-----BEGIN CERTIFICATE----- and -----END CERTIFICATE-----**</br>
-to the local computer including these two lines in a **.pem** file
+### Installation with script
 
-</br>
-</br>
-</br>
+Before running the script you must be login with a sudo!
 
-Этот скрипт предназначен для автоматической установки демона Strongswan. Используйте Ubuntu 20.04, на ней этото скипт протестирован и работает хорошо.
+In the process, this script will offer options for entering data for installation. Such as: FQDN/IP, network interface, user login/pass etc. All the rest it will do automatically and before the start of the service will display in the console the data for configuring client applications.
 
-## Установка.
+Use the following commands:
 
-Перед запуском скрипта узнайте свой сетевой интерфейс, используя команду 
-```
-ip route show default
-```
-После применения команды вы увидите вывод вида
-```
-Output
-default via your_server_ip dev eth0  proto static
-```
-После **dev** будет нужный интерфейc, в данном случае это **eth0**. Вставьте в скрипте ваш интерфейс, используйте поиск для этого. Замените в скрипте все eth0 на ваш сетевой интерфейс.
-Для запуска скрипта используйте команду
-```
-yes | sudo sh startswan.sh
-```
+```bash
+sudo -i
 
+chmod u+x startswan.sh
 
-## Использование.
-
-Вам нужно будет добавить логин и пароль пользователя.
-Отредактируйте файл
+./startswan.sh
 ```
-/etc/ipsec.secrets
-```
-Внутри файла есть шаблон как добавлять нового пользователя.
-После сохранения файла перезагрузите Strongswan используя команду
-```
-sudo systemctl restart strongswan-starter
-```
-
-Получить сертефикат можно с помошью команды
-```
-cat /etc/ipsec.d/cacerts/ca-cert.pem
-```
-Сохраните текст, заключенный между
-</br>**-----BEGIN CERTIFICATE-----** и **-----END CERTIFICATE-----**</br>
-на локальный компьютер включая эти две строки в файл с расширением **.pem**
-
-

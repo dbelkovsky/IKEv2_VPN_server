@@ -1,5 +1,7 @@
 #You must change the eth0 interface to your own in this script in /etc/ufw/before.rules in three places
 #!/bin/bash
+#set -x -e
+
 #vars
 read -e -p "Type server public IP(default) or FQDN: " -i "$(wget -qO - eth0.me)" myip
 echo "Select server network interface to next step"
@@ -9,7 +11,7 @@ read -e -p "Type server network interface: " myeth
 
 InstallStrongswan() {
     apt update
-    apt upgrade -y
+    #    apt upgrade -y
     apt install strongswan strongswan-pki libcharon-extra-plugins libcharon-extauth-plugins -yy
 }
 
@@ -190,11 +192,17 @@ EOF
 }
 FinalSettings() {
     echo "Congrats!!! Server settings are finished!!!"
-    echo "This is your connection profile"
-    echo "username: $user password: $pswd"
-    echo "This is your sertificate"
+    sleep 10
+    echo "This is your server address:"
+    echo "$myip"
+    sleep 5
+    echo "This is your connection profile:"
+    echo "username: $user"
+    echo "password: $pswd"
+    sleep 10
+    echo "This is your sertificate:"
     cat /etc/ipsec.d/cacerts/ca-cert.pem
-    echo "Copy and save username/password and cert for next settings steps"
+    echo "Copy and save address, username/password and cert for next settings steps"
 }
 
 InstallStrongswan
