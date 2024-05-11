@@ -204,9 +204,13 @@ FinalSettings() {
     cat /etc/ipsec.d/cacerts/ca-cert.pem
     echo "Copy and save address, username/password and cert for next settings steps"
 }
+if [ -f /etc/lsb-release ] || [ -f /etc/debian_version ]; then
 
-InstallStrongswan
-CreateSerts
-SettingupStrongswan
-IptablesAndFirewall
-FinalSettings
+    InstallStrongswan
+    CreateSerts
+    SettingupStrongswan
+    IptablesAndFirewall
+    FinalSettings
+fi
+echo "Is Not Debian or Ubutnu"
+exit 1
